@@ -14,13 +14,11 @@ public class LuaBridge extends VarArgFunction {
     static final int REGISTER       = 1;
     static final int CALL           = 2;
     static final int REMOVE         = 3;
-    static final int HANDLER        = 4;
 
     static final String[] NAMES = {
             "register",
             "call",
-            "remove",
-            "handler"
+            "remove"
     };
 
     public LuaBridge() {
@@ -40,49 +38,12 @@ public class LuaBridge extends VarArgFunction {
                     env.get("package").get("loaded").set("luabridge", t);
                     break;
                 case REGISTER:
-                    LuaValue luaFunction = null;
-                    switch (args.narg()) {
-                        case 2:
-                            luaFunction = args.arg(2);
-                        case 1:
-                            String name = args.arg(1).tojstring();
-                            if (luaFunction != null) {
-                                Set<LuaValue> valueSet = mLuaHandler.get(name);
-                                if (valueSet != null) {
-                                    valueSet.add(luaFunction);
-                                } else {
-                                    valueSet = new HashSet<>();
-                                    valueSet.add(luaFunction);
-                                    mLuaHandler.put(name, valueSet);
-                                }
-                            }
-                        default:
-                            break;
-                    }
+                    luaRegister(args);
                     break;
                 case CALL:
-                    LuaValue callback = NIL, data = NIL;
-                    switch (args.narg()) {
-                        case 3:
-                            callback = args.arg(3);
-                        case 2:
-                            data = args.arg(2);
-                        case 1:
-                            String name = args.arg(1).tojstring();
-                            Set<LuaHandler> set = mJavaHandler.get(name);
-                            if (set != null) {
-                                for (LuaHandler h : set) {
-                                    h.handler(data, callback);
-                                }
-                            }
-                        default:
-                            break;
-                    }
+                    luaCall(args);
                     break;
                 case REMOVE:
-                    break;
-                case HANDLER:
-                    System.out.println("Handler: " + args.arg1());
                     break;
                 default:
                     System.out.println();
@@ -103,9 +64,69 @@ public class LuaBridge extends VarArgFunction {
         return NIL;
     }
 
-    private static Map<String, Set<LuaHandler>> mJavaHandler = new HashMap<>();
-    private static Map<String, Set<LuaValue>> mLuaHandler = new HashMap<>();
+    /**
+     * lua 端 callHandler
+     * @param args
+     */
+    private void luaCall(Varargs args) {
+        LuaValue callback = NIL, data = NIL;
+        switch (args.narg()) {
+            case 3:
+                callback = args.arg(3);
+            case 2:
+                data = args.arg(2);
+            case 1:
+                String name = args.arg(1).tojstring();
+                Set<LuaHandler> set = mJavaHandler.get(name);
+                if (set != null) {
+                    for (LuaHandler h : set) {
+                        h.handler(data, callback);
+                    }
+                }
+            default:
+                break;
+        }
+    }
 
+    /**
+     * lua 端 registerHandler
+     * @param args
+     */
+    private void luaRegister(Varargs args) throws IllegalArgumentException {
+        LuaFunction luaFunction = null;
+        switch (args.narg()) {
+            case 2:
+                if (args.arg(2).isfunction()) {
+                    luaFunction = args.arg(2).checkfunction();
+                } else {
+                    // 必须传入 Function
+                    throw new IllegalArgumentException("The second arg must be function");
+                }
+            case 1:
+                String name = args.arg(1).tojstring();
+                if (luaFunction != null) {
+                    Set<LuaFunction> valueSet = mLuaHandler.get(name);
+                    if (valueSet != null) {
+                        valueSet.add(luaFunction);
+                    } else {
+                        valueSet = new HashSet<>();
+                        valueSet.add(luaFunction);
+                        mLuaHandler.put(name, valueSet);
+                    }
+                }
+            default:
+                break;
+        }
+    }
+
+    private static Map<String, Set<LuaHandler>> mJavaHandler = new HashMap<>();
+    private static Map<String, Set<LuaFunction>> mLuaHandler = new HashMap<>();
+
+    /**
+     * java 端 registerHandler
+     * @param name          桥名称
+     * @param handler       回调
+     */
     public static void registerHandler(String name, LuaHandler handler) {
         Set<LuaHandler> set = mJavaHandler.get(name);
         if (set == null) {
@@ -125,11 +146,17 @@ public class LuaBridge extends VarArgFunction {
         callHandler(name, data, null);
     }
 
+    /**
+     * java 端 callHandler
+     * @param name          桥名称
+     * @param data          数据
+     * @param callback      回调
+     */
     public static void callHandler(String name, String data, LuaCallback callback) {
-        Set<LuaValue> set = mLuaHandler.get(name);
+        Set<LuaFunction> set = mLuaHandler.get(name);
         if (set != null) {
-            for (LuaValue f : set) {
-                f.call(CoerceJavaToLua.coerce(data), CoerceJavaToLua.coerce(callback));
+            for (LuaFunction f : set) {
+                f.invoke(CoerceJavaToLua.coerce(data), CoerceJavaToLua.coerce(callback));
             }
         }
     }
@@ -139,6 +166,6 @@ public class LuaBridge extends VarArgFunction {
     }
 
     public interface LuaCallback {
-        void call(LuaValue data);
+        void call(Object data);
     }
 }

@@ -15,9 +15,13 @@ function funn_handler(arg1, arg2)
     print("lua 收到了来自 java 消息", arg1, arg2)
     if (arg2)
     then
-        print(arg2:getClass())
---        arg2:call("666")
+        arg2:call(678)
     end
 
 end
 luabridge.register("funn", funn_handler)
+
+local Thread = luajava.bindClass('java.lang.Thread')
+
+print(Thread:currentThread())
+print(thread)

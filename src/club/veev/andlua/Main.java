@@ -2,6 +2,7 @@ package club.veev.andlua;
 
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 
 public class Main {
 
@@ -20,13 +21,16 @@ public class Main {
             }
         });
 
+        globals.loadfile("club/veev/andlua/lua.lua").call();
         globals.loadfile("club/veev/andlua/hello.lua").call();
 
         LuaBridge.callHandler("funn", "1", new LuaBridge.LuaCallback() {
             @Override
-            public void call(LuaValue data) {
+            public void call(Object data) {
                 System.out.println("Java 发出去消息的回调: " + data);
             }
         });
+
+        System.out.println("thread: " + globals.running);
     }
 }
